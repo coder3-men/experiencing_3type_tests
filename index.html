@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 동물 분류기 실습 (중1 정보)</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel (JSX 실행용) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- 스타일 커스텀 -->
+    <style>
+        body {
+            font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+        }
+        .animate-bounce-slow {
+            animation: bounce 2s infinite;
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(-5%); }
+            50% { transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-gray-800">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- 아이콘 컴포넌트 (Lucide 아이콘 SVG 경로 매핑) ---
+        // 여러 경로(path)나 요소가 있는 경우 <>...</> (Fragment)로 감싸주어야 합니다.
+        const Icons = {
+            BookOpen: <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />,
+            CheckCircle: <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14 M22 4L12 14.01l-3-3" />,
+            Trophy: <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6 M18 9h1.5a2.5 2.5 0 0 0 0-5H18 M4 22h16 M2 17h20 M12 2v20 M12 2a5 5 0 0 1 5 5v2a5 5 0 0 1-5 5v0a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5z" />,
+            Play: <polygon points="5 3 19 12 5 21 5 3" />,
+            RotateCcw: <><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></>,
+            Brain: <><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z" /><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z" /></>,
+            ChevronRight: <polyline points="9 18 15 12 9 6" />,
+            AlertCircle: <><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></>,
+            Search: <><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></>,
+            Camera: <><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></>,
+            ThumbsUp: <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />,
+            ThumbsDown: <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" />,
+            RefreshCw: <><path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /></>
+        };
+
+        const Icon = ({ name, size = 24, className = "" }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width={size} 
+                height={size} 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className}
+            >
+                {Icons[name]}
+            </svg>
+        );
+
+        // --- 메인 애플리케이션 ---
+        const AIDataLearning = () => {
+            // 상태 관리
+            const [step, setStep] = useState('intro'); // intro, training, validation, testing, result
+            const [trainingCount, setTrainingCount] = useState(0);
+            const [validationScore, setValidationScore] = useState({ correct: 0, total: 0 });
+            const [testScore, setTestScore] = useState(0);
+            const [robotExp, setRobotExp] = useState(0); // 로봇의 경험치
+            const [message, setMessage] = useState("");
+            
+            // 현재 처리 중인 데이터 상태
+            const [currentAnimalType, setCurrentAnimalType] = useState(null); // 'dog' or 'cat'
+            const [currentEmoji, setCurrentEmoji] = useState(null); // 실제 로봇에게 들어간 이모지
+            
+            const [robotGuess, setRobotGuess] = useState(null); // 로봇의 예측
+            const [learnedFeatures, setLearnedFeatures] = useState([]); // 학습한 특징들
+
+            // 버튼에 보여줄 '다음' 데이터 이모지 상태
+            const [nextDogInput, setNextDogInput] = useState("🐶");
+            const [nextCatInput, setNextCatInput] = useState("🐱");
+
+            // 데이터셋 정의
+            const dogEmojis = ["🐶", "🐕", "🐩", "🦮", "🐕‍🦺"]; 
+            const catEmojis = ["🐱", "🐈", "🐈‍⬛", "😼", "😽", "😿"];
+
+            // 랜덤 이모지 선택 함수
+            const getRandomEmoji = (list) => {
+                return list[Math.floor(Math.random() * list.length)];
+            };
+
+            // 초기화 시 랜덤 설정
+            useEffect(() => {
+                setNextDogInput(getRandomEmoji(dogEmojis));
+                setNextCatInput(getRandomEmoji(catEmojis));
+            }, []);
+
+            // 단계별 설명 데이터
+            const stepsInfo = {
+                intro: {
+                    title: "AI 동물 분류기 만들기",
+                    desc: "다양한 모습의 강아지와 고양이 사진을 보여주며 AI를 훈련시킵니다. 데이터가 다양할수록 AI가 더 똑똑해집니다!",
+                    color: "bg-blue-100 border-blue-400 text-blue-800"
+                },
+                training: {
+                    title: "1단계: 학습 데이터 (Training Data)",
+                    desc: "버튼을 눌러 현재 보여지는 강아지/고양이를 로봇에게 가르쳐주세요. 누를 때마다 다른 사진이 나옵니다.",
+                    color: "bg-yellow-100 border-yellow-400 text-yellow-800"
+                },
+                validation: {
+                    title: "2단계: 검증 데이터 (Validation Data)",
+                    desc: "모의고사 시간! 아까 배우지 않은 새로운 모습의 동물들로 실력을 점검합니다.",
+                    color: "bg-green-100 border-green-400 text-green-800"
+                },
+                testing: {
+                    title: "3단계: 테스트 데이터 (Test Data)",
+                    desc: "실전 테스트! 한 번도 본 적 없는 완전 새로운 사진들을 잘 분류하는지 최종 확인합니다.",
+                    color: "bg-purple-100 border-purple-400 text-purple-800"
+                }
+            };
+
+            // 동물 아이콘 컴포넌트
+            const AnimalDisplay = ({ emoji, type, label }) => {
+                return (
+                    <div className="flex flex-col items-center animate-bounce-slow transition-all duration-300">
+                        <span className="text-6xl filter drop-shadow-md transform hover:scale-110 transition-transform cursor-default">{emoji}</span>
+                        {label && (
+                            <span className={`text-sm font-bold mt-2 ${type === 'dog' ? 'text-amber-700' : 'text-indigo-700'}`}>
+                                {type === 'dog' ? '강아지' : '고양이'}
+                            </span>
+                        )}
+                    </div>
+                );
+            };
+
+            // 로봇 표정 및 상태 변화
+            const RobotFace = () => {
+                let expression = "🤖"; // 기본
+                let color = "border-gray-300";
+                let glow = "";
+
+                if (robotExp > 20) { expression = "🤔"; color = "border-blue-400"; }
+                if (robotExp > 50) { expression = "💡"; color = "border-yellow-400"; glow = "shadow-[0_0_15px_rgba(250,204,21,0.5)]"; }
+                if (robotExp > 80) { expression = "🎓"; color = "border-indigo-500"; glow = "shadow-[0_0_20px_rgba(99,102,241,0.6)]"; }
+                if (step === 'testing') { expression = "🔎"; color = "border-purple-500"; }
+                if (step === 'result') { expression = testScore >= 80 ? "🎉" : "😵"; }
+
+                return (
+                    <div className={`transition-all duration-500 flex flex-col items-center relative`}>
+                        <div className={`w-32 h-32 rounded-full bg-white border-4 flex items-center justify-center text-6xl transition-all duration-300 ${color} ${glow} z-10`}>
+                            {expression}
+                        </div>
+                        
+                        {/* 학습 중 데이터 애니메이션 */}
+                        {step === 'training' && currentEmoji && (
+                        <div key={trainingCount} className="absolute top-0 right-[-40px] text-2xl animate-ping opacity-75">
+                            {currentEmoji}
+                        </div>
+                        )}
+
+                        <div className="text-center mt-3 font-bold text-gray-700">AI 동물 박사</div>
+                        
+                        {/* 경험치 바 */}
+                        <div className="w-48 bg-gray-200 rounded-full h-3 mt-2 overflow-hidden border border-gray-300">
+                            <div className="bg-gradient-to-r from-blue-400 to-indigo-600 h-full transition-all duration-500" style={{ width: `${robotExp}%` }}></div>
+                        </div>
+                        <div className="text-center text-xs text-gray-500 mt-1">지능 레벨: {robotExp}</div>
+
+                        {/* 학습한 특징 표시 */}
+                        {step === 'training' && learnedFeatures.length > 0 && (
+                        <div className="mt-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded animate-fade-in max-w-[200px] truncate">
+                            학습 중: {learnedFeatures[learnedFeatures.length-1]}
+                        </div>
+                        )}
+                    </div>
+                );
+            };
+
+            // 기능 함수들
+            const startTraining = () => {
+                setStep('training');
+                setMessage("버튼에 표시된 사진을 로봇에게 보내주세요. 클릭하면 다음 사진이 나옵니다!");
+                setLearnedFeatures([]);
+                setCurrentEmoji(null);
+                setNextDogInput(getRandomEmoji(dogEmojis));
+                setNextCatInput(getRandomEmoji(catEmojis));
+            };
+
+            const trainRobot = (animalType) => {
+                if (trainingCount >= 10) {
+                    setMessage("데이터가 충분히 모였습니다! 이제 모의고사(검증)를 볼까요?");
+                    return;
+                }
+                
+                const inputEmoji = animalType === 'dog' ? nextDogInput : nextCatInput;
+                
+                setCurrentAnimalType(animalType);
+                setCurrentEmoji(inputEmoji);
+
+                setTrainingCount(prev => prev + 1);
+                setRobotExp(prev => Math.min(prev + 8, 80)); 
+                
+                const dogFeatures = ["쳐진 귀", "둥근 코", "갈색 털", "짧은 꼬리", "목줄 착용", "곱슬 털"];
+                const catFeatures = ["뾰족 귀", "긴 수염", "세로 동공", "줄무늬", "검은 털", "식빵 자세"];
+                
+                const featureList = animalType === 'dog' ? dogFeatures : catFeatures;
+                const randomFeature = featureList[Math.floor(Math.random() * featureList.length)];
+                
+                setLearnedFeatures(prev => [...prev, randomFeature]);
+                
+                const feedback = animalType === 'dog' 
+                    ? `"${inputEmoji}" 사진 입력! 특징 '${randomFeature}' 학습 완료.` 
+                    : `"${inputEmoji}" 사진 입력! 특징 '${randomFeature}' 학습 완료.`;
+                setMessage(feedback);
+
+                if (animalType === 'dog') {
+                    setNextDogInput(getRandomEmoji(dogEmojis));
+                } else {
+                    setNextCatInput(getRandomEmoji(catEmojis));
+                }
+            };
+
+            const startValidation = () => {
+                setStep('validation');
+                setMessage("AI가 처음 보는 사진들을 보여줍니다. 정답을 알려주세요!");
+                generateNextQuiz();
+            };
+
+            const generateNextQuiz = () => {
+                const nextType = Math.random() > 0.5 ? 'dog' : 'cat';
+                const nextEmoji = getRandomEmoji(nextType === 'dog' ? dogEmojis : catEmojis);
+                
+                setCurrentAnimalType(nextType);
+                setCurrentEmoji(nextEmoji);
+                
+                const isCorrectGuess = Math.random() < (robotExp / 110);
+                const guess = isCorrectGuess ? nextType : (nextType === 'dog' ? 'cat' : 'dog');
+                setRobotGuess(guess);
+            };
+
+            const handleValidationCheck = (isCorrect) => {
+                const isRobotRight = currentAnimalType === robotGuess;
+                
+                if ((isRobotRight && isCorrect) || (!isRobotRight && !isCorrect)) {
+                    const messages = [
+                        "정확해요! 털 색깔 가중치를 조정했습니다.",
+                        "좋아요! 귀 모양 판단 기준을 수정했습니다.",
+                        "피드백 반영 완료! 더 똑똑해졌어요."
+                    ];
+                    setMessage(messages[Math.floor(Math.random() * messages.length)]);
+                    setRobotExp(prev => Math.min(prev + 5, 95)); 
+                } else {
+                    setMessage("어라? 채점이 틀린 것 같아요. 다시 확인해보세요!");
+                    return; 
+                }
+
+                setValidationScore(prev => ({
+                    correct: prev.correct + (isRobotRight ? 1 : 0),
+                    total: prev.total + 1
+                }));
+
+                if (validationScore.total >= 4) {
+                    setMessage("검증 완료! AI가 실전 테스트 준비를 마쳤습니다.");
+                } else {
+                    setTimeout(generateNextQuiz, 1000);
+                }
+            };
+
+            const startTest = () => {
+                setStep('testing');
+                setMessage("새로운 동물 사진 5장을 분석 중입니다...");
+                setCurrentEmoji(null);
+                
+                let score = 0;
+                for(let i=0; i<5; i++) {
+                    if(Math.random() < (robotExp / 100)) score += 20;
+                }
+                setTestScore(score);
+
+                setTimeout(() => {
+                    setStep('result');
+                }, 3000);
+            };
+
+            const resetAll = () => {
+                setStep('intro');
+                setTrainingCount(0);
+                setValidationScore({ correct: 0, total: 0 });
+                setTestScore(0);
+                setRobotExp(0);
+                setLearnedFeatures([]);
+                setMessage("");
+                setCurrentEmoji(null);
+                setNextDogInput(getRandomEmoji(dogEmojis));
+                setNextCatInput(getRandomEmoji(catEmojis));
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-50 font-sans text-gray-800 p-4 flex flex-col items-center selection:bg-blue-100">
+                    {/* 헤더 */}
+                    <header className="w-full max-w-2xl bg-white p-4 rounded-2xl shadow-sm mb-6 flex justify-between items-center border border-gray-100">
+                        <div className="flex items-center gap-3">
+                        <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
+                            <Icon name="Camera" size={24} />
+                        </div>
+                        <div>
+                            <h1 className="text-xl md:text-2xl font-bold text-gray-800 tracking-tight">AI 동물 박사 만들기</h1>
+                            <p className="text-xs text-gray-500">다양한 데이터(Variety) 학습 실습</p>
+                        </div>
+                        </div>
+                        <div className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100">
+                        중1 정보 교과
+                        </div>
+                    </header>
+
+                    {/* 메인 스테이지 */}
+                    <main className="w-full max-w-2xl bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+                        {/* 상단 진행바 */}
+                        <div className="bg-slate-50 p-4 flex justify-between items-center text-xs md:text-sm font-bold text-gray-400 border-b border-gray-100">
+                        <span className={`${step === 'intro' ? "text-blue-600 scale-105" : ""} transition-all duration-300`}>1. 개념</span>
+                        <Icon name="ChevronRight" size={14} />
+                        <span className={`${step === 'training' ? "text-blue-600 scale-105" : ""} transition-all duration-300`}>2. 학습</span>
+                        <Icon name="ChevronRight" size={14} />
+                        <span className={`${step === 'validation' ? "text-blue-600 scale-105" : ""} transition-all duration-300`}>3. 검증</span>
+                        <Icon name="ChevronRight" size={14} />
+                        <span className={`${step === 'testing' || step === 'result' ? "text-blue-600 scale-105" : ""} transition-all duration-300`}>4. 테스트</span>
+                        </div>
+
+                        <div className="p-6 md:p-8 flex flex-col items-center min-h-[450px]">
+                        
+                        {/* 로봇 표시 영역 */}
+                        <div className="mb-6 transform hover:scale-105 transition-transform duration-300 cursor-pointer">
+                            <RobotFace />
+                        </div>
+
+                        {/* 메시지 박스 */}
+                        <div className="bg-white border-2 border-indigo-100 shadow-sm p-4 rounded-2xl w-full mb-8 min-h-[80px] flex items-center relative overflow-hidden group">
+                            <div className="absolute left-0 top-0 h-full w-1 bg-indigo-500 rounded-l-md"></div>
+                            <div className="absolute -right-4 -bottom-4 opacity-20 group-hover:scale-110 transition-transform text-indigo-200">
+                                <Icon name="Brain" size={96} />
+                            </div>
+                            <p className="text-gray-700 text-lg break-keep w-full text-center relative z-10 font-medium animate-fade-in">
+                            {message || stepsInfo[step === 'result' ? 'testing' : step]?.desc}
+                            </p>
+                        </div>
+
+                        {/* 단계별 컨텐츠 */}
+                        <div className="w-full flex-1 flex flex-col items-center justify-center">
+                            
+                            {/* INTRO */}
+                            {step === 'intro' && (
+                            <div className="text-center w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-left">
+                                <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200 shadow-sm hover:-translate-y-1 transition-transform">
+                                    <h3 className="font-bold text-yellow-800 flex items-center gap-2 text-sm"><Icon name="BookOpen" size={16}/> 다양성 (Variety)</h3>
+                                    <p className="text-xs mt-1 text-gray-600 leading-relaxed">똑같은 사진만 공부하면 안 돼요! 여러 종류의 강아지/고양이를 배워야 합니다.</p>
+                                </div>
+                                <div className="bg-green-50 p-4 rounded-xl border border-green-200 shadow-sm hover:-translate-y-1 transition-transform">
+                                    <h3 className="font-bold text-green-800 flex items-center gap-2 text-sm"><Icon name="CheckCircle" size={16}/> 일반화 (Generalization)</h3>
+                                    <p className="text-xs mt-1 text-gray-600 leading-relaxed">다양한 데이터를 통해 공통적인 특징(패턴)을 찾아내는 과정입니다.</p>
+                                </div>
+                                <div className="bg-purple-50 p-4 rounded-xl border border-purple-200 shadow-sm hover:-translate-y-1 transition-transform">
+                                    <h3 className="font-bold text-purple-800 flex items-center gap-2 text-sm"><Icon name="Trophy" size={16}/> 테스트</h3>
+                                    <p className="text-xs mt-1 text-gray-600 leading-relaxed">완전히 처음 보는 사진도 잘 맞히는지 확인합니다.</p>
+                                </div>
+                                </div>
+                                <button 
+                                onClick={startTraining}
+                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-10 rounded-full text-lg shadow-lg shadow-blue-200 transform transition hover:scale-105 flex items-center gap-2 mx-auto"
+                                >
+                                <Icon name="Play" size={20} fill="white" /> 학습 시작하기
+                                </button>
+                            </div>
+                            )}
+
+                            {/* TRAINING */}
+                            {step === 'training' && (
+                            <div className="text-center w-full animate-in zoom-in duration-300">
+                                
+                                <div className="mb-4 h-16 flex items-center justify-center">
+                                {currentEmoji ? (
+                                    <div className="flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-full animate-bounce">
+                                        <span className="text-2xl">{currentEmoji}</span>
+                                        <span className="text-sm font-bold text-gray-600">데이터 입력됨</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-sm text-gray-400">버튼을 눌러 데이터를 주세요</span>
+                                )}
+                                </div>
+
+                                <div className="flex justify-center gap-6 mb-6">
+                                {/* 강아지 버튼 */}
+                                <button onClick={() => trainRobot('dog')} className="group bg-white border-2 border-amber-200 hover:bg-amber-50 hover:border-amber-400 p-6 rounded-2xl shadow-sm transition-all transform active:scale-95 flex flex-col items-center w-36 relative overflow-hidden">
+                                    <div className="absolute inset-0 bg-amber-100 opacity-0 group-hover:opacity-20 transition-opacity"></div>
+                                    
+                                    <span className="text-6xl mb-3 transition-all duration-300 transform group-hover:scale-110 block filter drop-shadow-sm">
+                                    {nextDogInput}
+                                    </span>
+                                    
+                                    <span className="font-bold text-gray-700">강아지 입력</span>
+                                    <span className="text-xs text-gray-400 mt-1">클릭 시 다음 데이터</span>
+                                </button>
+
+                                {/* 고양이 버튼 */}
+                                <button onClick={() => trainRobot('cat')} className="group bg-white border-2 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-400 p-6 rounded-2xl shadow-sm transition-all transform active:scale-95 flex flex-col items-center w-36 relative overflow-hidden">
+                                    <div className="absolute inset-0 bg-indigo-100 opacity-0 group-hover:opacity-20 transition-opacity"></div>
+                                    
+                                    <span className="text-6xl mb-3 transition-all duration-300 transform group-hover:scale-110 block filter drop-shadow-sm">
+                                    {nextCatInput}
+                                    </span>
+
+                                    <span className="font-bold text-gray-700">고양이 입력</span>
+                                    <span className="text-xs text-gray-400 mt-1">클릭 시 다음 데이터</span>
+                                </button>
+                                </div>
+                                
+                                <div className="flex items-center gap-3 w-full max-w-xs mx-auto mb-2">
+                                <span className="text-xs font-bold text-gray-400">학습 진행률</span>
+                                <div className="flex-1 bg-gray-100 rounded-full h-2.5">
+                                    <div className="bg-yellow-400 h-2.5 rounded-full transition-all duration-300" style={{ width: `${(trainingCount / 10) * 100}%` }}></div>
+                                </div>
+                                <span className="text-xs font-bold text-gray-600">{trainingCount}/10</span>
+                                </div>
+
+                                {trainingCount >= 10 && (
+                                <div className="mt-6">
+                                    <button 
+                                    onClick={startValidation}
+                                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-full shadow-lg shadow-green-200 animate-bounce flex items-center gap-2 mx-auto"
+                                    >
+                                    다음: 모의고사(검증) <Icon name="ChevronRight" size={18} />
+                                    </button>
+                                </div>
+                                )}
+                            </div>
+                            )}
+
+                            {/* VALIDATION */}
+                            {step === 'validation' && (
+                            <div className="text-center w-full animate-in zoom-in duration-300">
+                                {validationScore.total < 5 ? (
+                                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-lg w-full max-w-md mx-auto relative">
+                                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800 text-white text-xs px-3 py-1 rounded-full shadow">
+                                    AI 모델 튜닝 중
+                                    </div>
+
+                                    <div className="flex justify-center items-center gap-6 mb-6 mt-4">
+                                    <div className="text-center relative">
+                                        <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 min-w-[100px]">
+                                        <AnimalDisplay emoji={currentEmoji} type={currentAnimalType} />
+                                        </div>
+                                        <span className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-gray-200 text-gray-600 text-[10px] px-2 rounded-full whitespace-nowrap">문제 (입력)</span>
+                                    </div>
+                                    <div className="flex flex-col items-center">
+                                        <div className="text-2xl text-gray-300">➔</div>
+                                    </div>
+                                    <div className="text-center relative">
+                                        <div className={`bg-white p-6 rounded-2xl border-2 min-w-[100px] flex flex-col items-center justify-center ${currentAnimalType === robotGuess ? 'border-blue-200 bg-blue-50' : 'border-red-200 bg-red-50'}`}>
+                                        <span className="text-5xl">{robotGuess === 'dog' ? '🐶' : '🐱'}</span>
+                                        <span className={`text-sm font-bold mt-2 ${robotGuess === 'dog' ? 'text-amber-700' : 'text-indigo-700'}`}>
+                                            {robotGuess === 'dog' ? '강아지!' : '고양이!'}
+                                        </span>
+                                        </div>
+                                        <span className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-blue-100 text-blue-600 text-[10px] px-2 rounded-full whitespace-nowrap">AI의 예측</span>
+                                    </div>
+                                    </div>
+                                    
+                                    <p className="font-bold text-gray-800 text-lg mb-4">AI가 정답을 맞혔나요?</p>
+                                    <div className="flex gap-3 justify-center">
+                                    <button onClick={() => handleValidationCheck(true)} className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors">
+                                        <Icon name="ThumbsUp" size={18}/> 맞음
+                                    </button>
+                                    <button onClick={() => handleValidationCheck(false)} className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors">
+                                        <Icon name="ThumbsDown" size={18}/> 틀림
+                                    </button>
+                                    </div>
+                                </div>
+                                ) : (
+                                <div className="text-center py-8">
+                                    <div className="inline-block p-4 bg-green-100 rounded-full mb-4">
+                                    <Icon name="CheckCircle" size={48} className="text-green-600" />
+                                    </div>
+                                    <p className="text-xl font-bold mb-2 text-gray-800">검증 단계 완료!</p>
+                                    <p className="mb-8 text-gray-500 text-sm">오답 노트 학습을 통해 AI가<br/>다양한 특징을 더 잘 구분하게 되었습니다.</p>
+                                    <button 
+                                    onClick={startTest}
+                                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 px-10 rounded-full shadow-lg shadow-purple-200 transition-transform hover:scale-105"
+                                    >
+                                    최종 테스트 시작
+                                    </button>
+                                </div>
+                                )}
+                            </div>
+                            )}
+
+                            {/* TESTING */}
+                            {step === 'testing' && (
+                            <div className="flex flex-col items-center justify-center h-48 animate-in fade-in duration-500">
+                                <div className="relative">
+                                <div className="animate-spin rounded-full h-20 w-20 border-b-4 border-purple-600 mb-6"></div>
+                                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-purple-600">
+                                    <Icon name="Search" size={24} />
+                                </div>
+                                </div>
+                                <p className="text-xl font-bold text-purple-700 mb-2">새로운 사진 분석 중...</p>
+                                <div className="flex gap-2 text-4xl mt-4">
+                                <span className="animate-bounce" style={{animationDelay: '0ms'}}>🐕‍🦺</span>
+                                <span className="animate-bounce" style={{animationDelay: '100ms'}}>❓</span>
+                                <span className="animate-bounce" style={{animationDelay: '200ms'}}>😿</span>
+                                </div>
+                                <p className="text-xs text-gray-400 mt-4 bg-white px-3 py-1 rounded-full border">학습에 쓰지 않은 '전혀 새로운' 데이터들</p>
+                            </div>
+                            )}
+
+                            {/* RESULT */}
+                            {step === 'result' && (
+                            <div className="text-center w-full animate-in zoom-in duration-500">
+                                <div className="mb-8 relative inline-block">
+                                <div className="text-7xl font-black text-gray-800 tracking-tighter">{testScore}점</div>
+                                <div className="text-sm font-bold text-gray-400 absolute -bottom-4 left-1/2 transform -translate-x-1/2 w-full">최종 성능 평가</div>
+                                </div>
+                                
+                                <div className="bg-gray-50 p-6 rounded-2xl text-left mb-6 space-y-4 border border-gray-100">
+                                <h3 className="font-bold text-gray-800 border-b pb-2 mb-2 flex items-center gap-2">
+                                    <Icon name="BookOpen" size={18} className="text-gray-500"/> 학습 요약 리포트
+                                </h3>
+                                <div className="space-y-3 text-sm text-gray-600">
+                                    <p className="flex items-start gap-2">
+                                    <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs font-bold shrink-0 mt-0.5">다양성</span>
+                                    <span>푸들, 안내견, 검은 고양이 등 다양한 데이터를 보여줘서 편견(Bias)을 줄였습니다.</span>
+                                    </p>
+                                    <p className="flex items-start gap-2">
+                                    <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold shrink-0 mt-0.5">검증</span>
+                                    <span>헷갈리는 사진으로 학습 방향을 올바르게 잡았습니다.</span>
+                                    </p>
+                                </div>
+                                
+                                <div className="mt-4 bg-blue-50 p-4 rounded-xl border border-blue-100 text-sm text-blue-900 flex gap-3 items-start">
+                                    <Icon name="RefreshCw" size={20} className="shrink-0 mt-0.5 text-blue-600"/>
+                                    <div>
+                                    <strong className="block mb-1 text-blue-700">더 똑똑한 AI를 만들려면?</strong>
+                                    더 많고(Quantity), 더 다양한(Quality/Variety) 데이터를 수집해야 합니다. 
+                                    강아지 옷을 입은 고양이나, 고양이처럼 생긴 강아지 사진도 학습시키면 더 똑똑해질 거예요!
+                                    </div>
+                                </div>
+                                </div>
+
+                                <button 
+                                onClick={resetAll}
+                                className="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3.5 px-8 rounded-full flex items-center gap-2 mx-auto transition-transform hover:scale-105 shadow-lg"
+                                >
+                                <Icon name="RotateCcw" size={18} /> 처음부터 다시 하기
+                                </button>
+                            </div>
+                            )}
+
+                        </div>
+                        </div>
+                    </main>
+                    
+                    <footer className="mt-8 text-center text-gray-400 text-xs">
+                        <p>© 2024 AI Education Lab. 중학교 정보 교과 연계 실습.</p>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<AIDataLearning />);
+    </script>
+</body>
+</html>
